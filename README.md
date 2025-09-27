@@ -11,7 +11,7 @@ Production-ready **Docker Compose setup** with:
 
 ---
 
-## 📂 Project Structure
+## 📂 Project Structure (Boilerplate)
 
 ```
 .
