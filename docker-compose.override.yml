@@ -1,0 +1,9 @@
+services:
+  boilerplate-app:
+    volumes:
+      - ./app:/usr/src/app
+      - ./public:/usr/src/app/public
+      - ./uploads:/usr/src/app/uploads
+    environment:
+      - NODE_ENV=development
+    command: ["npm", "run", "dev"] # nodemon

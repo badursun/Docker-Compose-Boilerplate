@@ -1,0 +1,124 @@
+services:
+  boilerplate-app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: boilerplate-app
+    restart: unless-stopped
+    expose:
+      - "3000"
+    env_file:
+      - .env
+    volumes:
+      - boilerplate_public:/usr/src/app/public
+      - boilerplate_uploads:/usr/src/app/uploads
+    networks:
+      - boilerplate_net
+      - traefik_proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.boilerplate.rule=Host(`${APP_DOMAIN}`)"
+      - "traefik.http.routers.boilerplate.entrypoints=websecure"
+      - "traefik.http.routers.boilerplate.tls.certresolver=letsencrypt"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+
+  boilerplate-mysql:
+    image: mysql:8.0
+    container_name: boilerplate-mysql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    env_file:
+      - .env
+    volumes:
+      - boilerplate_mysql_data:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d
+    expose:
+      - "3306"
+    networks:
+      - boilerplate_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  boilerplate-redis:
+    image: redis:7-alpine
+    container_name: boilerplate-redis
+    restart: unless-stopped
+    # command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    env_file:
+      - .env
+    volumes:
+      - boilerplate_redis_data:/data
+    expose:
+      - "6379"
+    networks:
+      - boilerplate_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  boilerplate-traefik:
+    image: traefik:v3.0
+    container_name: boilerplate-traefik
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - boilerplate_letsencrypt:/letsencrypt
+    networks:
+      - traefik_proxy
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+#############################
+# NETWORKS
+#############################
+networks:
+  boilerplate_net:
+    driver: bridge
+    internal: true   # 🔒 İzole
+  traefik_proxy:
+    external: true   # Traefik global network
+
+#############################
+# VOLUMES
+#############################
+volumes:
+  boilerplate_public:
+  boilerplate_uploads:
+  boilerplate_mysql_data:
+  boilerplate_redis_data:
+  boilerplate_letsencrypt:
